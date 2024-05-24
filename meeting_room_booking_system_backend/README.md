@@ -19,4 +19,5 @@ asssets 是指定 build 时复制的文件，watchAssets 是在 assets 变动之
 
 - 功能罗列
   - 注册功能，邮箱注册
-  -
+  - 登录和权限，自定义装饰器
+  - 拦截器
