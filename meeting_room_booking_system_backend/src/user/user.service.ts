@@ -17,6 +17,7 @@ import { LoginUserDto } from "./dto/login-user.dto";
 import { LoginUserVo } from "./vo/login-user.vo";
 import { UpdateUserPasswordDto } from "./dto/update-user-password.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { UserListVo } from "./vo/user-list.vo";
 
 @Injectable()
 export class UserService {
@@ -39,6 +40,7 @@ export class UserService {
    * @param user
    * @returns
    */
+
   async register(user: RegisterUserDto) {
     // 去redis里查用户邮箱
     const captcha = await this.redisService.get(`captcha_${user.email}`);
@@ -317,9 +319,9 @@ export class UserService {
       where: condition,
     });
 
-    return {
-      users,
-      totalCount,
-    };
+    const vo = new UserListVo();
+    vo.users = users;
+    vo.totalCount = totalCount;
+    return vo;
   }
 }

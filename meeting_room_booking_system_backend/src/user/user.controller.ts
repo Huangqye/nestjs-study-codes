@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   BadRequestException,
   DefaultValuePipe,
+  HttpStatus,
 } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { RegisterUserDto } from "./dto/register-user.dto";
@@ -22,7 +23,17 @@ import { UserDetailVo } from "./vo/user-info.vo";
 import { UpdateUserPasswordDto } from "./dto/update-user-password.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { generateParseIntPipe } from "src/utils";
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
+import { LoginUserVo } from "./vo/login-user.vo";
+import { RefreshTokenVo } from "./vo/refresh-token.vo";
 
+@ApiTags("用户模块管理")
 @Controller("user")
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -39,11 +50,33 @@ export class UserController {
   @Inject(ConfigService)
   private configService: ConfigService;
 
+  @ApiBody({ type: RegisterUserDto })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: "验证码已失效/验证码不正确/用户已存在",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "注册成功/失败",
+    type: String,
+  })
   @Post("register")
   register(@Body() registerUser: RegisterUserDto) {
     return this.userService.register(registerUser);
   }
 
+  @ApiQuery({
+    name: "address",
+    type: String,
+    description: "邮箱地址",
+    required: true,
+    example: "xxx@xx.com",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "发送成功",
+    type: String,
+  })
   @Get("register-captcha")
   async captcha(@Query("address") address: string) {
     const code = Math.random().toString().slice(2, 8);
@@ -68,6 +101,18 @@ export class UserController {
    * @param loginUser
    * @returns
    */
+  @ApiBody({
+    type: LoginUserDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: "用户不存在/密码错误",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "用户信息和 token",
+    type: LoginUserVo,
+  })
   @Post("login")
   async userLogin(@Body() loginUser: LoginUserDto) {
     const vo = await this.userService.login(loginUser, false);
@@ -138,6 +183,22 @@ export class UserController {
    * @param refreshToken
    * @returns
    */
+  @ApiQuery({
+    name: "refreshToken",
+    type: String,
+    description: "刷新 token",
+    required: true,
+    example: "xxxxxxyyyyyzzzz",
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: "token 已失效，请重新登录",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "刷新成功",
+    type: RefreshTokenVo,
+  })
   @Get("refresh")
   async refresh(@Query("refreshToken") refreshToken: string) {
     try {
@@ -167,11 +228,12 @@ export class UserController {
             this.configService.get("jwt_refresh_token_expres_time") || "7d",
         }
       );
+      const vo = new RefreshTokenVo();
 
-      return {
-        access_token,
-        refresh_token,
-      };
+      vo.access_token = access_token;
+      vo.refresh_token = refresh_token;
+
+      return vo;
     } catch (e) {
       throw new UnauthorizedException("token 已失效，请重新登录");
     }
@@ -182,6 +244,22 @@ export class UserController {
    * @param refreshToken
    * @returns
    */
+  @ApiQuery({
+    name: "refreshToken",
+    type: String,
+    description: "刷新 token",
+    required: true,
+    example: "xxxxxxyyyyyzzzz",
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: "token 已失效，请重新登录",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "刷新成功",
+    type: RefreshTokenVo,
+  })
   @Get("admin/refresh")
   async adminRefresh(@Query("refreshToken") refreshToken: string) {
     try {
@@ -212,10 +290,10 @@ export class UserController {
         }
       );
 
-      return {
-        access_token,
-        refresh_token,
-      };
+      const vo = new RefreshTokenVo();
+
+      vo.access_token = access_token;
+      vo.refresh_token = refresh_token;
     } catch (e) {
       throw new UnauthorizedException("token 已失效，请重新登录");
     }
@@ -226,6 +304,12 @@ export class UserController {
    * @param userId
    * @returns
    */
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "success",
+    type: UserDetailVo,
+  })
   @Get("info")
   @RequireLogin()
   async info(@UserInfo("userId") userId: number) {
@@ -248,6 +332,14 @@ export class UserController {
    * @param passwordDto
    * @returns
    */
+  @ApiBearerAuth()
+  @ApiBody({
+    type: UpdateUserPasswordDto,
+  })
+  @ApiResponse({
+    type: String,
+    description: "验证码已失效/不正确",
+  })
   @Post(["update_password", "admin/update_password"])
   @RequireLogin()
   async updatePassword(
@@ -262,6 +354,16 @@ export class UserController {
    * @param address
    * @returns
    */
+  @ApiBearerAuth()
+  @ApiQuery({
+    name: "address",
+    description: "邮箱地址",
+    type: String,
+  })
+  @ApiResponse({
+    type: String,
+    description: "发生成功",
+  })
   @Get("update_password/captcha")
   async updatePasswordCaptcha(@Query("address") address: string) {
     const code = Math.random().toString().slice(2, 8);
@@ -279,7 +381,19 @@ export class UserController {
     });
     return "发送成功";
   }
-
+  @ApiBearerAuth()
+  @ApiBody({
+    type: UpdateUserDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: "验证码已失效/不正确",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "更新成功",
+    type: String,
+  })
   @Post(["update", "admin/update"])
   @RequireLogin()
   async update(
@@ -306,13 +420,54 @@ export class UserController {
     });
     return "发送成功";
   }
-
+  @ApiBearerAuth()
+  @ApiQuery({
+    name: "id",
+    description: "userId",
+    type: Number,
+  })
+  @ApiResponse({
+    type: String,
+    description: "success",
+  })
+  @RequireLogin()
   @Get("freeze")
   async freeze(@Query("id") userId: number) {
     await this.userService.freezeUserById(userId);
     return "success";
   }
 
+  @ApiBearerAuth()
+  @ApiQuery({
+    name: "pageNo",
+    description: "第几页",
+    type: Number,
+  })
+  @ApiQuery({
+    name: "pageSize",
+    description: "每页多少条",
+    type: Number,
+  })
+  @ApiQuery({
+    name: "username",
+    description: "用户名",
+    type: Number,
+  })
+  @ApiQuery({
+    name: "nickName",
+    description: "昵称",
+    type: Number,
+  })
+  @ApiQuery({
+    name: "email",
+    description: "邮箱地址",
+    type: Number,
+  })
+  @ApiResponse({
+    type: String,
+    description: "用户列表",
+  })
+  @RequireLogin()
   @Get("list")
   async list(
     @Query("pageNo", new DefaultValuePipe(1), generateParseIntPipe("pageNo"))
