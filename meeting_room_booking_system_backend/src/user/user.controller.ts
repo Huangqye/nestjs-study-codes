@@ -14,6 +14,10 @@ import { RedisService } from "src/redis/redis.service";
 import { LoginUserDto } from "./dto/login-user.dto";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
+import { RequireLogin, UserInfo } from "src/custom.decorator";
+import { UserDetailVo } from "./vo/user-info.vo";
+import { UpdateUserPasswordDto } from "./dto/update-user-password.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
 
 @Controller("user")
 export class UserController {
@@ -55,7 +59,11 @@ export class UserController {
     await this.userService.initData();
     return "done";
   }
-
+  /**
+   * 普通用户登录
+   * @param loginUser
+   * @returns
+   */
   @Post("login")
   async userLogin(@Body() loginUser: LoginUserDto) {
     const vo = await this.userService.login(loginUser, false);
@@ -86,6 +94,11 @@ export class UserController {
     return vo;
   }
 
+  /**
+   * 管理员用户登录
+   * @param loginUser
+   * @returns
+   */
   @Post("admin/login")
   async adminLogin(@Body() loginUser: LoginUserDto) {
     const vo = await this.userService.login(loginUser, true);
@@ -116,6 +129,11 @@ export class UserController {
     return vo;
   }
 
+  /**
+   * token刷新
+   * @param refreshToken
+   * @returns
+   */
   @Get("refresh")
   async refresh(@Query("refreshToken") refreshToken: string) {
     try {
@@ -155,6 +173,11 @@ export class UserController {
     }
   }
 
+  /**
+   * admin token刷新
+   * @param refreshToken
+   * @returns
+   */
   @Get("admin/refresh")
   async adminRefresh(@Query("refreshToken") refreshToken: string) {
     try {
@@ -192,5 +215,91 @@ export class UserController {
     } catch (e) {
       throw new UnauthorizedException("token 已失效，请重新登录");
     }
+  }
+
+  /**
+   * 获取用户信息
+   * @param userId
+   * @returns
+   */
+  @Get("info")
+  @RequireLogin()
+  async info(@UserInfo("userId") userId: number) {
+    const user = await this.userService.findUserDetailById(userId);
+    const vo = new UserDetailVo();
+    vo.id = user.id;
+    vo.email = user.email;
+    vo.username = user.username;
+    vo.headPic = user.headPic;
+    vo.phoneNumber = user.phoneNumber;
+    vo.nickName = user.nickName;
+    vo.createTime = user.createTime;
+    vo.isFrozen = user.isFrozen;
+
+    return vo;
+  }
+  /**
+   * 管理员和用户修改密码
+   * @param userId
+   * @param passwordDto
+   * @returns
+   */
+  @Post(["update_password", "admin/update_password"])
+  @RequireLogin()
+  async updatePassword(
+    @UserInfo("userId") userId: number,
+    @Body() passwordDto: UpdateUserPasswordDto
+  ) {
+    console.log(passwordDto);
+    return await this.userService.updatePassword(userId, passwordDto);
+  }
+  /**
+   * 发送邮箱验证码
+   * @param address
+   * @returns
+   */
+  @Get("update_password/captcha")
+  async updatePasswordCaptcha(@Query("address") address: string) {
+    const code = Math.random().toString().slice(2, 8);
+
+    await this.redisService.set(
+      `update_password_captcha_${address}`,
+      code,
+      10 * 60
+    );
+
+    await this.emailService.sendMail({
+      to: address,
+      subject: "更改密码验证码",
+      html: `<p>你的更改密码验证码是 ${code}</p>`,
+    });
+    return "发送成功";
+  }
+
+  @Post(["update", "admin/update"])
+  @RequireLogin()
+  async update(
+    @UserInfo("userId") userId: number,
+    @Body() updateUserDto: UpdateUserDto
+  ) {
+    return await this.userService.update(userId, updateUserDto);
+  }
+
+  @Get("update/captcha")
+  async updateCaptcha(@Query("address") address: string) {
+    const code = Math.random().toString().slice(2, 8);
+
+    await this.redisService.set(
+      `update_user_captcha_${address}`,
+      code,
+      10 * 60
+    );
+
+    await this.emailService.sendMail({
+      to: address,
+      subject: "更改用户信息验证码",
+      html: `<p>你的验证码是 ${code}</p>`,
+    });
+    return "发送成功";
   }
 }
