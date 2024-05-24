@@ -6,8 +6,6 @@ import {
   Get,
   Query,
   UnauthorizedException,
-  ParseIntPipe,
-  BadRequestException,
   DefaultValuePipe,
   HttpStatus,
 } from "@nestjs/common";
