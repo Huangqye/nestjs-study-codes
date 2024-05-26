@@ -17,6 +17,8 @@ async function bootstrap() {
   // app.useGlobalFilters(new UnLoginFilter());
   app.useGlobalFilters(new CustomExceptionFilter());
 
+  app.enableCors(); //打开跨域
+
   const config = new DocumentBuilder()
     .setTitle("会议室预订系统")
     .setDescription("api 接口文档")

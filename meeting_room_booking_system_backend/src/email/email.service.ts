@@ -22,7 +22,7 @@ export class EmailService {
     await this.transporter.sendMail({
       from: {
         name: "会议室预定系统",
-        address: this.configService.get("nodemailer_auth_pass"),
+        address: this.configService.get("nodemailer_auth_user"),
       },
       to,
       subject,
