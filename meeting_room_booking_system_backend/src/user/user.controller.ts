@@ -8,6 +8,9 @@ import {
   UnauthorizedException,
   DefaultValuePipe,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { RegisterUserDto } from "./dto/register-user.dto";
@@ -30,6 +33,9 @@ import {
 } from "@nestjs/swagger";
 import { LoginUserVo } from "./vo/login-user.vo";
 import { RefreshTokenVo } from "./vo/refresh-token.vo";
+import { FileInterceptor } from "@nestjs/platform-express";
+import * as path from "path";
+import { storage } from "src/my-file-storage";
 
 @ApiTags("用户模块管理")
 @Controller("user")
@@ -119,6 +125,7 @@ export class UserController {
       {
         userId: vo.userInfo.id,
         username: vo.userInfo.username,
+        email: vo.userInfo.email,
         roles: vo.userInfo.roles,
         permissions: vo.userInfo.permissions,
       },
@@ -154,6 +161,7 @@ export class UserController {
       {
         userId: vo.userInfo.id,
         username: vo.userInfo.username,
+        email: vo.userInfo.email,
         roles: vo.userInfo.roles,
         permissions: vo.userInfo.permissions,
       },
@@ -208,6 +216,7 @@ export class UserController {
         {
           userId: user.id,
           username: user.username,
+          email: user.email,
           roles: user.roles,
           permissions: user.permissions,
         },
@@ -268,6 +277,7 @@ export class UserController {
       const access_token = this.jwtService.sign(
         {
           userId: user.id,
+          email: user.email,
           username: user.username,
           roles: user.roles,
           permissions: user.permissions,
@@ -330,7 +340,6 @@ export class UserController {
    * @param passwordDto
    * @returns
    */
-  @ApiBearerAuth()
   @ApiBody({
     type: UpdateUserPasswordDto,
   })
@@ -339,20 +348,15 @@ export class UserController {
     description: "验证码已失效/不正确",
   })
   @Post(["update_password", "admin/update_password"])
-  @RequireLogin()
-  async updatePassword(
-    @UserInfo("userId") userId: number,
-    @Body() passwordDto: UpdateUserPasswordDto
-  ) {
+  async updatePassword(@Body() passwordDto: UpdateUserPasswordDto) {
     console.log(passwordDto);
-    return await this.userService.updatePassword(userId, passwordDto);
+    return await this.userService.updatePassword(passwordDto);
   }
   /**
    * 发送邮箱验证码
    * @param address
    * @returns
    */
-  @ApiBearerAuth()
   @ApiQuery({
     name: "address",
     description: "邮箱地址",
@@ -379,6 +383,7 @@ export class UserController {
     });
     return "发送成功";
   }
+
   @ApiBearerAuth()
   @ApiBody({
     type: UpdateUserDto,
@@ -401,8 +406,14 @@ export class UserController {
     return await this.userService.update(userId, updateUserDto);
   }
 
+  @ApiBearerAuth()
+  @ApiResponse({
+    type: String,
+    description: "发送成功",
+  })
+  @RequireLogin()
   @Get("update/captcha")
-  async updateCaptcha(@Query("address") address: string) {
+  async updateCaptcha(@UserInfo("email") address: string) {
     const code = Math.random().toString().slice(2, 8);
 
     await this.redisService.set(
@@ -418,6 +429,7 @@ export class UserController {
     });
     return "发送成功";
   }
+
   @ApiBearerAuth()
   @ApiQuery({
     name: "id",
@@ -487,5 +499,29 @@ export class UserController {
       pageNo,
       pageSize
     );
+  }
+
+  @Post("upload")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      dest: "uploads",
+      storage,
+      limits: {
+        fileSize: 1024 * 1024 * 3,
+      },
+      fileFilter(req, file, callback) {
+        const extname = path.extname(file.originalname);
+        if ([".png", ".jpg", ".gif"].includes(extname)) {
+          // callback 的第一个参数是 error，第二个参数是是否接收文件。
+          callback(null, true);
+        } else {
+          callback(new BadRequestException("只能上传图片"), false);
+        }
+      },
+    })
+  )
+  uploadFile(@UploadedFile() file: Express.Multer.File) {
+    console.log("file", file);
+    return file.path;
   }
 }
