@@ -2,7 +2,7 @@ import { Button, Form, Input, message } from "antd";
 import "./login.css";
 import { useNavigate } from "react-router-dom";
 import { useCallback } from "react";
-import { login } from "../interface/interfaces";
+import { login } from "../../interface/interfaces";
 
 interface LoginUser {
   username: string;
